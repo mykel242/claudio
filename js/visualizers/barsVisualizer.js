@@ -1,12 +1,11 @@
 /**
  * Frequency bars visualizer with distribution matching circular visualizer
+ * Peaks functionality disabled
  */
 class BarsVisualizer {
   constructor(canvas, ctx) {
     this.canvas = canvas;
     this.ctx = ctx;
-    this.peaks = [];
-    this.peakDots = []; // Array to store peak dots
   }
 
   /**
@@ -14,7 +13,7 @@ class BarsVisualizer {
    * @param {Uint8Array} dataArray - Audio frequency data
    * @param {string} colorScheme - Color scheme to use
    * @param {number} deltaTime - Time elapsed since last frame (ms)
-   * @param {number} decayMs - Peak decay time in milliseconds
+   * @param {number} decayMs - Peak decay time in milliseconds (unused)
    * @param {number} barCount - Number of bars to display
    */
   draw(dataArray, colorScheme, deltaTime, decayMs, barCount) {
@@ -22,15 +21,6 @@ class BarsVisualizer {
     const height = this.canvas.height;
 
     const barWidth = width / barCount;
-
-    // Initialize peaks array if needed
-    if (!this.peaks.length || this.peaks.length !== barCount) {
-      this.peaks = Array(barCount).fill(0);
-      this.peakDots = Array(barCount).fill(null);
-    }
-
-    // Decay rate based on user setting
-    const decayRate = deltaTime / decayMs;
 
     // Calculate frequency bins using the same distribution as the circle visualizer
     const frequencyBins = this.calculateFrequencyBins(
@@ -78,35 +68,7 @@ class BarsVisualizer {
       this.ctx.closePath();
 
       this.ctx.fill();
-
-      // Check for new peak
-      if (value > this.peaks[i]) {
-        this.peaks[i] = value;
-
-        // Create a new peak dot
-        const peakBarHeight = (value / 255) * height;
-        const peakY = height - peakBarHeight;
-        const centerX = x + barWidth / 2;
-
-        this.peakDots[i] = {
-          x: centerX,
-          y: peakY,
-          createdAt: performance.now(),
-          value: value,
-        };
-      }
-
-      // Decay the peaks over time
-      this.peaks[i] = Math.max(0, this.peaks[i] - 255 * decayRate);
-
-      // If peak decayed to 0, remove the dot
-      if (this.peaks[i] === 0) {
-        this.peakDots[i] = null;
-      }
     }
-
-    // Draw all peak dots
-    this.drawPeakDots(decayMs);
   }
 
   /**
@@ -152,32 +114,5 @@ class BarsVisualizer {
     }
 
     return bins;
-  }
-
-  /**
-   * Draw all peak dots with opacity based on time elapsed
-   * @param {number} decayMs - Peak decay time in milliseconds
-   */
-  drawPeakDots(decayMs) {
-    const currentTime = performance.now();
-
-    for (let i = 0; i < this.peakDots.length; i++) {
-      const dot = this.peakDots[i];
-      if (!dot) continue;
-
-      // Calculate opacity based on time elapsed since creation
-      const timeSincePeak = currentTime - dot.createdAt;
-      const normalizedTime = Math.min(timeSincePeak / decayMs, 1);
-      const opacity = 1 - normalizedTime;
-
-      if (opacity > 0) {
-        // Draw the peak dot
-        const dotRadius = this.canvas.width / this.peakDots.length / 3;
-        this.ctx.beginPath();
-        this.ctx.arc(dot.x, dot.y, dotRadius, 0, Math.PI * 2);
-        this.ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
-        this.ctx.fill();
-      }
-    }
   }
 }

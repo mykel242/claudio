@@ -1,12 +1,10 @@
 /**
- * Circular visualizer
+ * Circular visualizer without peak dots
  */
 class CircleVisualizer {
   constructor(canvas, ctx) {
     this.canvas = canvas;
     this.ctx = ctx;
-    this.peaks = [];
-    this.peakDots = []; // Store peak dots
   }
 
   /**
@@ -14,7 +12,7 @@ class CircleVisualizer {
    * @param {Uint8Array} dataArray - Audio frequency data
    * @param {string} colorScheme - Color scheme to use
    * @param {number} deltaTime - Time elapsed since last frame (ms)
-   * @param {number} decayMs - Peak decay time in milliseconds
+   * @param {number} decayMs - Peak decay time in milliseconds (unused)
    * @param {number} barCount - Number of segments to display
    * @param {number} innerRadiusFactor - Factor to control inner circle radius (default: 4)
    * @param {number} maxBarLength - Maximum length for bars as percentage of inner radius (default: 100)
@@ -37,15 +35,6 @@ class CircleVisualizer {
     const innerRadius = Math.min(width, height) / innerRadiusFactor;
     const halfCount = Math.floor(barCount / 2);
 
-    // Initialize arrays if needed
-    if (!this.peaks.length || this.peaks.length !== barCount + 1) {
-      this.peaks = Array(barCount + 1).fill(0);
-      this.peakDots = Array(barCount + 1).fill(null);
-    }
-
-    // Decay rate based on user setting
-    const decayRate = deltaTime / decayMs;
-
     // Draw base circle
     this.ctx.beginPath();
     this.ctx.arc(centerX, centerY, innerRadius, 0, Math.PI * 2);
@@ -56,8 +45,6 @@ class CircleVisualizer {
     this._drawHalfCircle(
       dataArray,
       colorScheme,
-      decayMs,
-      decayRate,
       centerX,
       centerY,
       innerRadius,
@@ -71,8 +58,6 @@ class CircleVisualizer {
     this._drawHalfCircle(
       dataArray,
       colorScheme,
-      decayMs,
-      decayRate,
       centerX,
       centerY,
       innerRadius,
@@ -86,8 +71,6 @@ class CircleVisualizer {
     this._drawExtraBar(
       dataArray,
       colorScheme,
-      decayMs,
-      decayRate,
       centerX,
       centerY,
       innerRadius,
@@ -95,17 +78,12 @@ class CircleVisualizer {
       Math.PI / 2,
       maxBarLength,
     );
-
-    // Draw all peak dots
-    this.drawPeakDots(centerX, centerY, innerRadius, maxBarLength, decayMs);
   }
 
   /**
    * Draw half of the circular visualization
    * @param {Uint8Array} dataArray - Audio frequency data
    * @param {string} colorScheme - Color scheme to use
-   * @param {number} decayMs - Peak decay time in milliseconds
-   * @param {number} decayRate - Rate of peak decay
    * @param {number} centerX - X coordinate of the center
    * @param {number} centerY - Y coordinate of the center
    * @param {number} innerRadius - Base radius of the inner circle
@@ -117,8 +95,6 @@ class CircleVisualizer {
   _drawHalfCircle(
     dataArray,
     colorScheme,
-    decayMs,
-    decayRate,
     centerX,
     centerY,
     innerRadius,
@@ -194,30 +170,6 @@ class CircleVisualizer {
       this.ctx.moveTo(innerX, innerY);
       this.ctx.lineTo(outerX, outerY);
       this.ctx.stroke();
-
-      // Update peak if current value is higher
-      if (value > this.peaks[peakIndex]) {
-        // Store new peak value
-        this.peaks[peakIndex] = value;
-
-        // Create a new peak dot
-        this.peakDots[peakIndex] = {
-          angle: angle,
-          value: value,
-          createdAt: performance.now(),
-        };
-      }
-
-      // Decay the peak over time
-      this.peaks[peakIndex] = Math.max(
-        0,
-        this.peaks[peakIndex] - 255 * decayRate,
-      );
-
-      // If peak decayed to 0, remove the dot
-      if (this.peaks[peakIndex] === 0) {
-        this.peakDots[peakIndex] = null;
-      }
     }
   }
 
@@ -225,8 +177,6 @@ class CircleVisualizer {
    * Draw an extra bar at a specific angle to fill the gap
    * @param {Uint8Array} dataArray - Audio frequency data
    * @param {string} colorScheme - Color scheme to use
-   * @param {number} decayMs - Peak decay time in milliseconds
-   * @param {number} decayRate - Rate of peak decay
    * @param {number} centerX - X coordinate of the center
    * @param {number} centerY - Y coordinate of the center
    * @param {number} innerRadius - Base radius of the inner circle
@@ -237,8 +187,6 @@ class CircleVisualizer {
   _drawExtraBar(
     dataArray,
     colorScheme,
-    decayMs,
-    decayRate,
     centerX,
     centerY,
     innerRadius,
@@ -285,68 +233,5 @@ class CircleVisualizer {
     this.ctx.moveTo(innerX, innerY);
     this.ctx.lineTo(outerX, outerY);
     this.ctx.stroke();
-
-    // Update peak if current value is higher
-    if (value > this.peaks[peakIndex]) {
-      // Store new peak value
-      this.peaks[peakIndex] = value;
-
-      // Create a new peak dot
-      this.peakDots[peakIndex] = {
-        angle: angle,
-        value: value,
-        createdAt: performance.now(),
-      };
-    }
-
-    // Decay the peak over time
-    this.peaks[peakIndex] = Math.max(
-      0,
-      this.peaks[peakIndex] - 255 * decayRate,
-    );
-
-    // If peak decayed to 0, remove the dot
-    if (this.peaks[peakIndex] === 0) {
-      this.peakDots[peakIndex] = null;
-    }
-  }
-
-  /**
-   * Draw all peak dots with opacity based on time elapsed
-   * @param {number} centerX - X coordinate of the center
-   * @param {number} centerY - Y coordinate of the center
-   * @param {number} innerRadius - Base radius of the inner circle
-   * @param {number} maxBarLength - Maximum bar length as percentage
-   * @param {number} decayMs - Peak decay time in milliseconds
-   */
-  drawPeakDots(centerX, centerY, innerRadius, maxBarLength, decayMs) {
-    const currentTime = performance.now();
-
-    for (let i = 0; i < this.peakDots.length; i++) {
-      const dot = this.peakDots[i];
-      if (!dot) continue;
-
-      // Calculate opacity based on time elapsed since creation
-      const timeSincePeak = currentTime - dot.createdAt;
-      const normalizedTime = Math.min(timeSincePeak / decayMs, 1);
-      const opacity = 1 - normalizedTime;
-
-      if (opacity > 0) {
-        // Calculate the peak dot position
-        const maxHeight = innerRadius * (maxBarLength / 100);
-        const peakBarHeight = (dot.value / 255) * maxHeight;
-
-        const peakX =
-          centerX + Math.cos(dot.angle) * (innerRadius + peakBarHeight);
-        const peakY =
-          centerY + Math.sin(dot.angle) * (innerRadius + peakBarHeight);
-
-        // Draw the peak dot
-        this.ctx.beginPath();
-        this.ctx.arc(peakX, peakY, 3, 0, Math.PI * 2);
-        this.ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
-        this.ctx.fill();
-      }
-    }
   }
 }

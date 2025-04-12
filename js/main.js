@@ -180,11 +180,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
   barCountInput.addEventListener("input", function () {
     barCountValue.textContent = this.value;
-    // Reset peaks arrays when bar count changes
-    barsVisualizer.peaks = [];
-    barsVisualizer.peakDots = [];
-    circleVisualizer.peaks = [];
-    circleVisualizer.peakDots = [];
   });
 
   peakDecayInput.addEventListener("input", function () {
