@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Audio Frequency Visualizer</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #121212;
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        
+        h1 {
+            margin-bottom: 20px;
+        }
+        
+        .container {
+            width: 100%;
+            max-width: 800px;
+            text-align: center;
+        }
+        
+        canvas {
+            width: 100%;
+            height: 300px;
+            background-color: #1e1e1e;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        button {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background-color: #45a049;
+        }
+        
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        
+        select, input {
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #555;
+            background-color: #2a2a2a;
+            color: white;
+        }
+        
+        .file-input {
+            margin-bottom: 15px;
+        }
+        
+        #status {
+            margin-top: 10px;
+            font-style: italic;
+        }
+        
+        .visualizer-options {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Audio Frequency Visualizer</h1>
+        
+        <canvas id="visualizer"></canvas>
+        
+        <div class="controls">
+            <button id="micButton">Use Microphone</button>
+            <button id="stopButton" disabled>Stop</button>
+            
+            <select id="visualType">
+                <option value="bars">Frequency Bars</option>
+                <option value="wave">Waveform</option>
+                <option value="circle">Circular</option>
+            </select>
+        </div>
+        
+        <div class="file-input">
+            <input type="file" id="audioFile" accept="audio/*">
+            <button id="playFile" disabled>Play Audio File</button>
+        </div>
+        
+        <div class="visualizer-options">
+            <div class="slider-container">
+                <label for="barCount">Bar Count:</label>
+                <input type="range" id="barCount" min="16" max="256" value="64" step="16">
+                <span id="barCountValue">64</span>
+            </div>
+            
+            <div>
+                <label for="colorScheme">Color Scheme:</label>
+                <select id="colorScheme">
+                    <option value="rainbow">Rainbow</option>
+                    <option value="gradient">Gradient</option>
+                    <option value="single">Single Color</option>
+                    <option value="white-fade">White Fade</option>
+                    <option value="blue-fade">Blue Fade</option>
+                    <option value="green-fade">Green Fade</option>
+                    <option value="purple-fade">Purple Fade</option>
+                    <option value="cyan-fade">Cyan Fade</option>
+                </select>
+            </div>
+            
+            <div class="slider-container">
+                <label for="peakDecay">Peak Decay (ms):</label>
+                <input type="range" id="peakDecay" min="100" max="2000" value="1000" step="100">
+                <span id="peakDecayValue">1000</span>
+            </div>
+        </div>
+        
+        <p id="status">Ready. Click 'Use Microphone' or select an audio file to begin.</p>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Get DOM elements
+            const canvas = document.getElementById('visualizer');
+            const ctx = canvas.getContext('2d');
+            const micButton = document.getElementById('micButton');
+            const stopButton = document.getElementById('stopButton');
+            const playFileButton = document.getElementById('playFile');
+            const audioFileInput = document.getElementById('audioFile');
+            const visualTypeSelect = document.getElementById('visualType');
+            const barCountInput = document.getElementById('barCount');
+            const barCountValue = document.getElementById('barCountValue');
+            const colorSchemeSelect = document.getElementById('colorScheme');
+            const peakDecayInput = document.getElementById('peakDecay');
+            const peakDecayValue = document.getElementById('peakDecayValue');
+            const statusElement = document.getElementById('status');
+            
+            // Audio context and variables
+            let audioContext;
+            let analyser;
+            let dataArray;
+            let source;
+            let animationId;
+            let isPlaying = false;
+            let audioElement;
+            let peaks = [];
+            let lastFrameTime = 0;
+            
+            // Set canvas size with higher resolution
+            function resizeCanvas() {
+                canvas.width = canvas.clientWidth * 2;
+                canvas.height = canvas.clientHeight * 2;
+            }
+            
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+            
+            // Initialize audio context
+            function initAudio() {
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    analyser = audioContext.createAnalyser();
+                    
+                    // Configure analyser
+                    analyser.fftSize = 2048;
+                    analyser.smoothingTimeConstant = 0.85;
+                    
+                    const bufferLength = analyser.frequencyBinCount;
+                    dataArray = new Uint8Array(bufferLength);
+                    
+                    analyser.connect(audioContext.destination);
+                }
+            }
+            
+            // Use microphone input
+            async function useMicrophone() {
+                try {
+                    initAudio();
+                    if (audioContext.state === 'suspended') {
+                        await audioContext.resume();
+                    }
+                    
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    
+                    statusElement.textContent = 'Using microphone input...';
+                    
+                    if (source) {
+                        source.disconnect();
+                    }
+                    
+                    source = audioContext.createMediaStreamSource(stream);
+                    source.connect(analyser);
+                    
+                    isPlaying = true;
+                    stopButton.disabled = false;
+                    micButton.disabled = true;
+                    playFileButton.disabled = true;
+                    
+                    visualize();
+                    
+                } catch (err) {
+                    statusElement.textContent = 'Error accessing microphone: ' + err.message;
+                    console.error('Error accessing microphone:', err);
+                }
+            }
+            
+            // Play audio file
+            function playAudioFile() {
+                const file = audioFileInput.files[0];
+                if (!file) {
+                    statusElement.textContent = 'Please select an audio file first.';
+                    return;
+                }
+                
+                initAudio();
+                
+                if (audioElement) {
+                    audioElement.pause();
+                    audioElement.remove();
+                }
+                
+                audioElement = new Audio();
+                audioElement.src = URL.createObjectURL(file);
+                
+                audioElement.oncanplay = function() {
+                    if (audioContext.state === 'suspended') {
+                        audioContext.resume();
+                    }
+                    
+                    if (source) {
+                        source.disconnect();
+                    }
+                    
+                    source = audioContext.createMediaElementSource(audioElement);
+                    source.connect(analyser);
+                    
+                    audioElement.play();
+                    
+                    isPlaying = true;
+                    stopButton.disabled = false;
+                    micButton.disabled = true;
+                    playFileButton.disabled = true;
+                    
+                    statusElement.textContent = 'Playing: ' + file.name;
+                    
+                    visualize();
+                };
+                
+                audioElement.onerror = function() {
+                    statusElement.textContent = 'Error playing the audio file.';
+                };
+            }
+            
+            // Stop audio playback/capture
+            function stopAudio() {
+                if (animationId) {
+                    cancelAnimationFrame(animationId);
+                    animationId = null;
+                }
+                
+                if (audioElement) {
+                    audioElement.pause();
+                }
+                
+                if (source) {
+                    source.disconnect();
+                    source = null;
+                }
+                
+                isPlaying = false;
+                stopButton.disabled = true;
+                micButton.disabled = false;
+                playFileButton.disabled = audioFileInput.files.length === 0;
+                
+                // Clear canvas
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                statusElement.textContent = 'Stopped. Ready to start again.';
+            }
+            
+            // Get color based on scheme and value
+            function getColor(value, i, totalBars, colorScheme) {
+                switch (colorScheme) {
+                    case 'rainbow':
+                        const hue = (i / totalBars) * 360;
+                        return `hsl(${hue}, 100%, 50%)`;
+                    case 'gradient':
+                        const intensity = value / 255;
+                        return `rgb(${Math.round(intensity * 255)}, ${Math.round(intensity * 100)}, ${Math.round(255 - intensity * 255)})`;
+                    case 'white-fade':
+                        const alphaWhite = 0.1 + (value / 255) * 0.9;
+                        return `rgba(255, 255, 255, ${alphaWhite})`;
+                    case 'blue-fade':
+                        const alphaBlue = 0.1 + (value / 255) * 0.9;
+                        return `rgba(0, 100, 255, ${alphaBlue})`;
+                    case 'green-fade':
+                        const alphaGreen = 0.1 + (value / 255) * 0.9;
+                        return `rgba(0, 220, 100, ${alphaGreen})`;
+                    case 'purple-fade':
+                        const alphaPurple = 0.1 + (value / 255) * 0.9;
+                        return `rgba(180, 0, 255, ${alphaPurple})`;
+                    case 'cyan-fade':
+                        const alphaCyan = 0.1 + (value / 255) * 0.9;
+                        return `rgba(0, 220, 220, ${alphaCyan})`;
+                    default:
+                        return '#4CAF50';
+                }
+            }
+            
+            // Visualization function
+            function visualize() {
+                if (!isPlaying) return;
+                
+                const currentTime = performance.now();
+                const deltaTime = currentTime - lastFrameTime;
+                lastFrameTime = currentTime;
+                
+                animationId = requestAnimationFrame(visualize);
+                
+                // Get frequency data
+                analyser.getByteFrequencyData(dataArray);
+                
+                // Clear the canvas
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                const visualType = visualTypeSelect.value;
+                const colorScheme = colorSchemeSelect.value;
+                const decayMs = parseInt(peakDecayInput.value);
+                
+                switch (visualType) {
+                    case 'bars':
+                        drawBars(dataArray, colorScheme, deltaTime, decayMs);
+                        break;
+                    case 'wave':
+                        drawWaveform(dataArray, colorScheme);
+                        break;
+                    case 'circle':
+                        drawCircular(dataArray, colorScheme, deltaTime, decayMs);
+                        break;
+                }
+            }
+            
+            // Draw frequency bars
+            function drawBars(dataArray, colorScheme, deltaTime, decayMs) {
+                const barCount = parseInt(barCountInput.value);
+                const width = canvas.width;
+                const height = canvas.height;
+                
+                const barWidth = width / barCount;
+                const step = Math.floor(dataArray.length / barCount);
+                
+                // Initialize peaks array if needed
+                if (!peaks.length || peaks.length !== barCount) {
+                    peaks = Array(barCount).fill().map(() => ({ value: 0, time: 0 }));
+                }
+                
+                // Decay rate based on user setting
+                const decayRate = deltaTime / decayMs;
+                
+                for (let i = 0; i < barCount; i++) {
+                    // Get average value for this frequency band
+                    let sum = 0;
+                    for (let j = 0; j < step; j++) {
+                        sum += dataArray[i * step + j];
+                    }
+                    const value = sum / step;
+                    
+                    // Calculate bar height based on frequency value (0-255)
+                    const barHeight = (value / 255) * height;
+                    const x = i * barWidth;
+                    const y = height - barHeight;
+                    
+                    // Set color based on selected scheme
+                    ctx.fillStyle = getColor(value, i, barCount, colorScheme);
+                    
+                    // Draw bar with rounded corners
+                    ctx.beginPath();
+                    const radius = barWidth / 4;
+                    
+                    // Only round the top corners
+                    ctx.moveTo(x, height);
+                    ctx.lineTo(x, y + radius);
+                    ctx.quadraticCurveTo(x, y, x + radius, y);
+                    ctx.lineTo(x + barWidth - radius, y);
+                    ctx.quadraticCurveTo(x + barWidth, y, x + barWidth, y + radius);
+                    ctx.lineTo(x + barWidth, height);
+                    ctx.closePath();
+                    
+                    ctx.fill();
+                    
+                    // Update peak if current value is higher
+                    if (value > peaks[i].value) {
+                        peaks[i] = { value: value, time: performance.now() };
+                    }
+                    
+                    // Draw the peak dot - now separated from the bar
+                    const peakBarHeight = (peaks[i].value / 255) * height;
+                    const peakY = height - peakBarHeight;
+                    const centerX = x + barWidth / 2;
+                    
+                    // Calculate opacity based on time elapsed since last peak
+                    const timeSincePeak = performance.now() - peaks[i].time;
+                    const normalizedTime = Math.min(timeSincePeak / decayMs, 1);
+                    const opacity = 1 - normalizedTime;
+                    
+                    if (opacity > 0) {
+                        // Draw the peak dot
+                        const dotRadius = barWidth / 3;
+                        ctx.beginPath();
+                        ctx.arc(centerX, peakY, dotRadius, 0, Math.PI * 2);
+                        ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
+                        ctx.fill();
+                    }
+                    
+                    // Decay the peak over time
+                    peaks[i].value = Math.max(0, peaks[i].value - (255 * decayRate));
+                }
+            }
+            
+            // Draw waveform visualization
+            function drawWaveform(dataArray, colorScheme) {
+                // Create a new array for time domain data to avoid overwriting frequency data
+                const timeDataArray = new Uint8Array(analyser.frequencyBinCount);
+                analyser.getByteTimeDomainData(timeDataArray);
+                
+                const width = canvas.width;
+                const height = canvas.height;
+                const bufferLength = analyser.frequencyBinCount;
+                const sliceWidth = width / bufferLength;
+                
+                ctx.lineWidth = 2;
+                
+                // Set color based on selected scheme
+                if (colorScheme === 'rainbow') {
+                    ctx.strokeStyle = 'hsl(180, 100%, 50%)';
+                } else if (colorScheme === 'gradient') {
+                    const gradient = ctx.createLinearGradient(0, 0, width, 0);
+                    gradient.addColorStop(0, 'rgb(0, 255, 255)');
+                    gradient.addColorStop(0.5, 'rgb(255, 0, 255)');
+                    gradient.addColorStop(1, 'rgb(255, 255, 0)');
+                    ctx.strokeStyle = gradient;
+                } else {
+                    ctx.strokeStyle = getColor(200, 0, 1, colorScheme);
+                }
+                
+                ctx.beginPath();
+                
+                let x = 0;
+                for (let i = 0; i < bufferLength; i++) {
+                    const v = timeDataArray[i] / 128.0;
+                    const y = v * height / 2;
+                    
+                    if (i === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                    
+                    x += sliceWidth;
+                }
+                
+                ctx.stroke();
+            }
+            
+            // Draw circular visualization
+            function drawCircular(dataArray, colorScheme, deltaTime, decayMs) {
+                const width = canvas.width;
+                const height = canvas.height;
+                const centerX = width / 2;
+                const centerY = height / 2;
+                
+                const radius = Math.min(width, height) / 3;
+                const barCount = parseInt(barCountInput.value);
+                const step = Math.floor(dataArray.length / barCount);
+                const halfCount = Math.floor(barCount / 2);
+                
+                // Initialize peaks array if needed for circular visualization
+                if (!peaks.length || peaks.length !== barCount) {
+                    peaks = Array(barCount).fill().map(() => ({ value: 0, time: 0 }));
+                }
+                
+                // Decay rate based on user setting
+                const decayRate = deltaTime / decayMs;
+                
+                // Draw the upper half (0 to PI)
+                for (let i = 0; i < halfCount; i++) {
+                    // Get average value for this frequency band
+                    let sum = 0;
+                    for (let j = 0; j < step; j++) {
+                        sum += dataArray[i * step + j];
+                    }
+                    const value = sum / step;
+                    
+                    // Calculate bar height based on frequency value (0-255)
+                    const barHeight = (value / 255) * radius;
+                    
+                    // Calculate angle for this bar - map from 0 to PI
+                    const angle = (i / halfCount) * Math.PI;
+                    
+                    // Calculate start and end points
+                    const innerX = centerX + Math.cos(angle) * radius;
+                    const innerY = centerY + Math.sin(angle) * radius;
+                    
+                    const outerX = centerX + Math.cos(angle) * (radius + barHeight);
+                    const outerY = centerY + Math.sin(angle) * (radius + barHeight);
+                    
+                    // Set color based on scheme
+                    ctx.strokeStyle = getColor(value, i, barCount, colorScheme);
+                    ctx.lineWidth = 2;
+                    
+                    // Draw line from inner circle to outer point
+                    ctx.beginPath();
+                    ctx.moveTo(innerX, innerY);
+                    ctx.lineTo(outerX, outerY);
+                    ctx.stroke();
+                    
+                    // Update peak if current value is higher
+                    if (value > peaks[i].value) {
+                        peaks[i] = { value: value, time: performance.now() };
+                    }
+                    
+                    // Draw peak dot with fade effect
+                    const peakBarHeight = (peaks[i].value / 255) * radius;
+                    const peakX = centerX + Math.cos(angle) * (radius + peakBarHeight);
+                    const peakY = centerY + Math.sin(angle) * (radius + peakBarHeight);
+                    
+                    // Calculate opacity based on time elapsed
+                    const timeSincePeak = performance.now() - peaks[i].time;
+                    const normalizedTime = Math.min(timeSincePeak / decayMs, 1);
+                    const opacity = 1 - normalizedTime;
+                    
+                    if (opacity > 0) {
+                        ctx.beginPath();
+                        ctx.arc(peakX, peakY, 3, 0, Math.PI * 2);
+                        ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
+                        ctx.fill();
+                    }
+                    
+                    // Decay the peak over time
+                    peaks[i].value = Math.max(0, peaks[i].value - (255 * decayRate));
+                }
+                
+                // Draw the lower half (0 to -PI)
+                for (let i = 0; i < halfCount; i++) {
+                    // Get average value for this frequency band
+                    let sum = 0;
+                    for (let j = 0; j < step; j++) {
+                        sum += dataArray[i * step + j];
+                    }
+                    const value = sum / step;
+                    
+                    // Calculate bar height based on frequency value (0-255)
+                    const barHeight = (value / 255) * radius;
+                    
+                    // Calculate angle for this bar - map from 0 to -PI (going clockwise)
+                    const angle = -(i / halfCount) * Math.PI;
+                    
+                    // Calculate start and end points
+                    const innerX = centerX + Math.cos(angle) * radius;
+                    const innerY = centerY + Math.sin(angle) * radius;
+                    
+                    const outerX = centerX + Math.cos(angle) * (radius + barHeight);
+                    const outerY = centerY + Math.sin(angle) * (radius + barHeight);
+                    
+                    // Set color based on scheme
+                    ctx.strokeStyle = getColor(value, i + halfCount, barCount, colorScheme);
+                    ctx.lineWidth = 2;
+                    
+                    // Draw line from inner circle to outer point
+                    ctx.beginPath();
+                    ctx.moveTo(innerX, innerY);
+                    ctx.lineTo(outerX, outerY);
+                    ctx.stroke();
+                    
+                    // Update peak if current value is higher
+                    const peakIndex = i + halfCount;
+                    if (value > peaks[peakIndex].value) {
+                        peaks[peakIndex] = { value: value, time: performance.now() };
+                    }
+                    
+                    // Draw peak dot with fade effect
+                    const peakBarHeight = (peaks[peakIndex].value / 255) * radius;
+                    const peakX = centerX + Math.cos(angle) * (radius + peakBarHeight);
+                    const peakY = centerY + Math.sin(angle) * (radius + peakBarHeight);
+                    
+                    // Calculate opacity based on time elapsed
+                    const timeSincePeak = performance.now() - peaks[peakIndex].time;
+                    const normalizedTime = Math.min(timeSincePeak / decayMs, 1);
+                    const opacity = 1 - normalizedTime;
+                    
+                    if (opacity > 0) {
+                        ctx.beginPath();
+                        ctx.arc(peakX, peakY, 3, 0, Math.PI * 2);
+                        ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
+                        ctx.fill();
+                    }
+                    
+                    // Decay the peak over time
+                    peaks[peakIndex].value = Math.max(0, peaks[peakIndex].value - (255 * decayRate));
+                }
+                
+                // Draw base circle
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+                ctx.stroke();
+            }
+            
+            // Event listeners
+            micButton.addEventListener('click', useMicrophone);
+            stopButton.addEventListener('click', stopAudio);
+            playFileButton.addEventListener('click', playAudioFile);
+            
+            audioFileInput.addEventListener('change', function() {
+                if (this.files.length > 0) {
+                    playFileButton.disabled = false;
+                    playFileButton.textContent = 'Play: ' + this.files[0].name;
+                }
+            });
+            
+            visualTypeSelect.addEventListener('change', function() {
+                if (isPlaying) {
+                    // Re-visualize with new type if already playing
+                    cancelAnimationFrame(animationId);
+                    visualize();
+                }
+            });
+            
+            barCountInput.addEventListener('input', function() {
+                barCountValue.textContent = this.value;
+                // Reset peaks array when bar count changes
+                peaks = [];
+            });
+            
+            peakDecayInput.addEventListener('input', function() {
+                peakDecayValue.textContent = this.value;
+            });
+            
+            // Handle audio file drag and drop
+            canvas.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                this.style.background = '#2a2a2a';
+            });
+            
+            canvas.addEventListener('dragleave', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                this.style.background = '#1e1e1e';
+            });
+            
+            canvas.addEventListener('drop', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                this.style.background = '#1e1e1e';
+                
+                const files = e.dataTransfer.files;
+                if (files.length > 0 && files[0].type.match('audio.*')) {
+                    audioFileInput.files = files;
+                    playFileButton.disabled = false;
+                    playFileButton.textContent = 'Play: ' + files[0].name;
+                    playAudioFile();
+                }
+            });
+        });
+    </script>
+</body>
+</html>
