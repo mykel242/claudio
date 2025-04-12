@@ -70,16 +70,29 @@
                 </div>
 
                 <div class="slider-container circle-option">
-                    <label for="circleDiameter">Circle Size:</label>
+                    <label for="innerRadius">Inner Radius:</label>
                     <input
                         type="range"
-                        id="circleDiameter"
-                        min="2"
-                        max="6"
-                        value="3"
+                        id="innerRadius"
+                        min="3"
+                        max="8"
+                        value="4"
                         step="0.5"
                     />
-                    <span id="circleDiameterValue">3</span>
+                    <span id="innerRadiusValue">4</span>
+                </div>
+
+                <div class="slider-container circle-option">
+                    <label for="maxBarLength">Max Bar Length (%):</label>
+                    <input
+                        type="range"
+                        id="maxBarLength"
+                        min="50"
+                        max="200"
+                        value="100"
+                        step="10"
+                    />
+                    <span id="maxBarLengthValue">100</span>
                 </div>
             </div>
 

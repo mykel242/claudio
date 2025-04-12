@@ -15,8 +15,10 @@ document.addEventListener("DOMContentLoaded", function () {
   const colorSchemeSelect = document.getElementById("colorScheme");
   const peakDecayInput = document.getElementById("peakDecay");
   const peakDecayValue = document.getElementById("peakDecayValue");
-  const circleDiameterInput = document.getElementById("circleDiameter");
-  const circleDiameterValue = document.getElementById("circleDiameterValue");
+  const innerRadiusInput = document.getElementById("innerRadius");
+  const innerRadiusValue = document.getElementById("innerRadiusValue");
+  const maxBarLengthInput = document.getElementById("maxBarLength");
+  const maxBarLengthValue = document.getElementById("maxBarLengthValue");
   const statusElement = document.getElementById("status");
 
   // Initialize canvas
@@ -53,7 +55,8 @@ document.addEventListener("DOMContentLoaded", function () {
     const colorScheme = colorSchemeSelect.value;
     const decayMs = parseInt(peakDecayInput.value);
     const barCount = parseInt(barCountInput.value);
-    const circleDiameter = parseFloat(circleDiameterInput.value);
+    const innerRadius = parseFloat(innerRadiusInput.value);
+    const maxBarLength = parseInt(maxBarLengthInput.value);
 
     switch (visualType) {
       case "bars":
@@ -78,7 +81,8 @@ document.addEventListener("DOMContentLoaded", function () {
           deltaTime,
           decayMs,
           barCount,
-          circleDiameter,
+          innerRadius,
+          maxBarLength,
         );
         break;
     }
@@ -180,8 +184,12 @@ document.addEventListener("DOMContentLoaded", function () {
     peakDecayValue.textContent = this.value;
   });
 
-  circleDiameterInput.addEventListener("input", function () {
-    circleDiameterValue.textContent = this.value;
+  innerRadiusInput.addEventListener("input", function () {
+    innerRadiusValue.textContent = this.value;
+  });
+
+  maxBarLengthInput.addEventListener("input", function () {
+    maxBarLengthValue.textContent = this.value;
   });
 
   // Initialize circle options visibility
