@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Audio Frequency Visualizer</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Audio Frequency Visualizer</h1>
+        
+        <canvas id="visualizer"></canvas>
+        
+        <div class="controls">
+            <button id="micButton">Use Microphone</button>
+            <button id="stopButton" disabled>Stop</button>
+            
+            <select id="visualType">
+                <option value="bars">Frequency Bars</option>
+                <option value="wave">Waveform</option>
+                <option value="circle">Circular</option>
+            </select>
+        </div>
+        
+        <div class="file-input">
+            <input type="file" id="audioFile" accept="audio/*">
+            <button id="playFile" disabled>Play Audio File</button>
+        </div>
+        
+        <div class="visualizer-options">
+            <div class="slider-container">
+                <label for="barCount">Bar Count:</label>
+                <input type="range" id="barCount" min="16" max="256" value="64" step="16">
+                <span id="barCountValue">64</span>
+            </div>
+            
+            <div>
+                <label for="colorScheme">Color Scheme:</label>
+                <select id="colorScheme">
+                    <option value="rainbow">Rainbow</option>
+                    <option value="gradient">Gradient</option>
+                    <option value="single">Single Color</option>
+                    <option value="white-fade">White Fade</option>
+                    <option value="blue-fade">Blue Fade</option>
+                    <option value="green-fade">Green Fade</option>
+                    <option value="purple-fade">Purple Fade</option>
+                    <option value="cyan-fade">Cyan Fade</option>
+                </select>
+            </div>
+            
+            <div class="slider-container">
+                <label for="peakDecay">Peak Decay (ms):</label>
+                <input type="range" id="peakDecay" min="100" max="2000" value="1000" step="100">
+                <span id="peakDecayValue">1000</span>
+            </div>
+        </div>
+        
+        <p id="status">Ready. Click 'Use Microphone' or select an audio file to begin.</p>
+    </div>
+
+    <!-- Load scripts -->
+    <script src="js/utils.js"></script>
+    <script src="js/colorUtils.js"></script>
+    <script src="js/audioController.js"></script>
+    <script src="js/visualizers/barsVisualizer.js"></script>
+    <script src="js/visualizers/waveVisualizer.js"></script>
+    <script src="js/visualizers/circleVisualizer.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
