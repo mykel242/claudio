@@ -2,6 +2,11 @@
  * Main application controller
  */
 document.addEventListener("DOMContentLoaded", function () {
+  // Prevent text selection on slider labels
+  document.querySelectorAll("label").forEach((label) => {
+    label.addEventListener("mousedown", (e) => e.preventDefault());
+  });
+
   // Get DOM elements
   const canvas = document.getElementById("visualizer");
   const ctx = canvas.getContext("2d");
@@ -71,7 +76,7 @@ document.addEventListener("DOMContentLoaded", function () {
         break;
       case "wave":
         const timeData = audioController.getTimeData();
-        waveVisualizer.draw(timeData, colorScheme);
+        waveVisualizer.draw(timeData, colorScheme, deltaTime, decayMs);
         break;
       case "circle":
         const circleData = audioController.getFrequencyData();
@@ -177,7 +182,9 @@ document.addEventListener("DOMContentLoaded", function () {
     barCountValue.textContent = this.value;
     // Reset peaks arrays when bar count changes
     barsVisualizer.peaks = [];
+    barsVisualizer.peakDots = [];
     circleVisualizer.peaks = [];
+    circleVisualizer.peakDots = [];
   });
 
   peakDecayInput.addEventListener("input", function () {
