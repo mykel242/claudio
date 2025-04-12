@@ -38,8 +38,9 @@ class CircleVisualizer {
     const halfCount = Math.floor(barCount / 2);
 
     // Initialize peaks array if needed for circular visualization
-    if (!this.peaks.length || this.peaks.length !== barCount) {
-      this.peaks = Array(barCount)
+    if (!this.peaks.length || this.peaks.length !== barCount + 1) {
+      // +1 for the extra bar
+      this.peaks = Array(barCount + 1)
         .fill()
         .map(() => ({ value: 0, time: 0 }));
     }
@@ -82,6 +83,21 @@ class CircleVisualizer {
       halfCount,
       halfCount,
       -1,
+      maxBarLength,
+    );
+
+    // Fill the gap at PI/2 with an extra bar
+    this._drawExtraBar(
+      dataArray,
+      colorScheme,
+      decayMs,
+      decayRate,
+      centerX,
+      centerY,
+      innerRadius,
+      step,
+      halfCount,
+      Math.PI / 2,
       maxBarLength,
     );
   }
@@ -141,6 +157,7 @@ class CircleVisualizer {
               (maxFreqIndex * 0.9),
         );
       }
+
       const bandSize = Math.max(1, nextFreqIndex - freqIndex);
 
       // Get average value for this frequency band
@@ -214,6 +231,107 @@ class CircleVisualizer {
           this.ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
           this.ctx.fill();
         }
+      }
+    }
+  }
+
+  /**
+   * Draw an extra bar at a specific angle to fill the gap
+   * @param {Uint8Array} dataArray - Audio frequency data
+   * @param {string} colorScheme - Color scheme to use
+   * @param {number} decayMs - Peak decay time in milliseconds
+   * @param {number} decayRate - Rate of peak decay
+   * @param {number} centerX - X coordinate of the center
+   * @param {number} centerY - Y coordinate of the center
+   * @param {number} innerRadius - Base radius of the inner circle
+   * @param {number} step - Frequency steps per segment
+   * @param {number} halfCount - Half the number of total segments
+   * @param {number} angle - The specific angle for this bar
+   * @param {number} maxBarLength - Maximum bar length as percentage of inner radius
+   */
+  _drawExtraBar(
+    dataArray,
+    colorScheme,
+    decayMs,
+    decayRate,
+    centerX,
+    centerY,
+    innerRadius,
+    step,
+    halfCount,
+    angle,
+    maxBarLength,
+  ) {
+    // Use an average of nearby frequencies
+    const freqIndex = Math.floor(dataArray.length / 2);
+    const bandSize = 10;
+
+    let sum = 0;
+    for (let j = 0; j < bandSize; j++) {
+      const index = freqIndex + j;
+      if (index < dataArray.length) {
+        sum += dataArray[index];
+      }
+    }
+    const value = sum / bandSize;
+
+    // Calculate bar height based on frequency value (0-255) with max length constraint
+    const maxHeight = innerRadius * (maxBarLength / 100);
+    const barHeight = (value / 255) * maxHeight;
+
+    // Calculate start and end points
+    const innerX = centerX + Math.cos(angle) * innerRadius;
+    const innerY = centerY + Math.sin(angle) * innerRadius;
+
+    const outerX = centerX + Math.cos(angle) * (innerRadius + barHeight);
+    const outerY = centerY + Math.sin(angle) * (innerRadius + barHeight);
+
+    // Set color based on scheme
+    const peakIndex = halfCount * 2; // Use the last position in the peaks array
+    this.ctx.strokeStyle = ColorUtils.getColor(
+      value,
+      peakIndex,
+      halfCount * 2 + 1,
+      colorScheme,
+    );
+    this.ctx.lineWidth = 2;
+
+    // Draw line from inner circle to outer point
+    this.ctx.beginPath();
+    this.ctx.moveTo(innerX, innerY);
+    this.ctx.lineTo(outerX, outerY);
+    this.ctx.stroke();
+
+    // Update peak if current value is higher
+    if (value > this.peaks[peakIndex].value) {
+      this.peaks[peakIndex] = { value: value, time: performance.now() };
+    } else {
+      // Only decay the peak over time if we're not setting a new peak
+      this.peaks[peakIndex].value = Math.max(
+        0,
+        this.peaks[peakIndex].value - 255 * decayRate,
+      );
+    }
+
+    // Draw peak dot with fade effect (only if we have a peak that hasn't fully decayed)
+    if (this.peaks[peakIndex].value > 0) {
+      // Calculate peak bar height with max constraint
+      const maxHeight = innerRadius * (maxBarLength / 100);
+      const peakBarHeight = (this.peaks[peakIndex].value / 255) * maxHeight;
+
+      const peakX = centerX + Math.cos(angle) * (innerRadius + peakBarHeight);
+      const peakY = centerY + Math.sin(angle) * (innerRadius + peakBarHeight);
+
+      // Calculate opacity based on time elapsed
+      const timeSincePeak = performance.now() - this.peaks[peakIndex].time;
+      const normalizedTime = Math.min(timeSincePeak / decayMs, 1);
+      const opacity = 1 - normalizedTime;
+
+      if (opacity > 0) {
+        this.ctx.beginPath();
+        this.ctx.arc(peakX, peakY, 3, 0, Math.PI * 2);
+        this.ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
+        this.ctx.fill();
       }
     }
   }
